@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>월급시계 — 내 월급, 지금 얼마나 불었을까?</title>
+<meta name="description" content="연봉을 입력하면 내 월급이 초·분·시간 단위로 실시간 쌓이는 걸 보여주는 월급 타이머">
+<style>
+  :root{
+    --bg:#0f1226; --bg2:#1a1f3d; --card:rgba(255,255,255,.06);
+    --accent:#ffd43b; --accent2:#4dabff; --text:#f1f3f9; --dim:#9aa3c0;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans-serif;
+    background:radial-gradient(1200px 800px at 50% -10%,#232a52 0%,var(--bg) 60%);
+    color:var(--text); min-height:100%; display:flex; flex-direction:column; align-items:center;
+    padding:24px 16px 48px; overflow-x:hidden;
+  }
+  h1{font-size:clamp(22px,5.5vw,32px); font-weight:800; letter-spacing:-.5px; margin-bottom:4px; text-align:center}
+  h1 .coin{color:var(--accent)}
+  .sub{color:var(--dim); font-size:14px; margin-bottom:24px; text-align:center}
+  .panel{width:100%; max-width:520px; background:var(--card); border:1px solid rgba(255,255,255,.09);
+    border-radius:20px; padding:20px; backdrop-filter:blur(6px)}
+  label{display:block; font-size:13px; color:var(--dim); margin:0 0 6px 2px}
+  .salary-row{display:flex; gap:8px; align-items:center}
+  input.salary{
+    flex:1; min-width:0; font-size:20px; font-weight:700; color:var(--text); background:rgba(0,0,0,.3);
+    border:1.5px solid rgba(255,255,255,.14); border-radius:12px; padding:12px 14px; outline:none; text-align:right;
+  }
+  input.salary:focus{border-color:var(--accent)}
+  input.salary[readonly]{opacity:.75}
+  .eye{background:rgba(0,0,0,.3); border:1.5px solid rgba(255,255,255,.14); border-radius:12px;
+    padding:12px 12px; font-size:16px; cursor:pointer; color:var(--dim); line-height:1}
+  .won{font-size:16px; color:var(--dim); white-space:nowrap}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px}
+  .chip{font-size:12px; color:var(--dim); background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.1);
+    padding:6px 10px; border-radius:999px; cursor:pointer}
+  .chip:active{transform:scale(.95)}
+  .seg{display:flex; background:rgba(0,0,0,.3); border-radius:12px; padding:4px; margin-top:8px}
+  .seg button{flex:1; padding:10px 4px; font-size:14px; font-weight:600; color:var(--dim); background:none;
+    border:none; border-radius:9px; cursor:pointer; transition:.15s; white-space:nowrap}
+  .seg button.on{background:var(--bg2); color:var(--text); box-shadow:0 2px 8px rgba(0,0,0,.4)}
+  .seg-label{font-size:12px; color:var(--dim); margin:14px 0 0 2px}
+  #startBtn{
+    width:100%; margin-top:20px; padding:16px; font-size:18px; font-weight:800; color:#1a1a1a;
+    background:linear-gradient(135deg,#ffd43b,#ffb700); border:none; border-radius:14px; cursor:pointer;
+    box-shadow:0 6px 20px rgba(255,212,59,.25); transition:.15s;
+  }
+  #startBtn:active{transform:scale(.97)}
+  #homeBtn{width:100%; margin-top:14px; padding:13px; font-size:15px; font-weight:700; color:var(--text);
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16); border-radius:12px; cursor:pointer}
+  .basis{font-size:12px; color:var(--dim); margin-top:14px; line-height:1.6; text-align:center}
+
+  #stage{display:none; width:100%; max-width:520px; text-align:center; position:relative}
+  .rate-line{font-size:15px; color:var(--dim); margin-top:26px}
+  .rate-line b{color:var(--accent2); font-size:17px}
+  #counter{
+    font-size:clamp(44px,12vw,72px); font-weight:900; letter-spacing:-1px; color:var(--accent);
+    font-variant-numeric:tabular-nums; margin:10px 0 4px; text-shadow:0 0 40px rgba(255,212,59,.35);
+    display:flex; justify-content:center; align-items:baseline; overflow:hidden; min-height:1.2em;
+  }
+  #counter .digit{display:inline-block; transition:transform .12s}
+  #counter .bump{transform:translateY(-6px); color:#fff3bf}
+  #elapsed{font-size:13px; color:var(--dim)}
+  #fun{margin-top:24px; display:flex; flex-direction:column; gap:10px}
+  .fun-item{background:var(--card); border:1px solid rgba(255,255,255,.09); border-radius:14px; padding:12px 16px;
+    display:flex; justify-content:space-between; align-items:center; font-size:15px}
+  .fun-item .cnt{font-weight:800; color:var(--accent2); font-variant-numeric:tabular-nums}
+  #liveCtl{margin-top:22px; text-align:left}
+  #liveCtl .panel-title{font-size:13px; color:var(--dim); text-align:center; margin-bottom:12px}
+  .basis2{font-size:11.5px; color:#6b7395; margin-top:18px; line-height:1.6; text-align:center}
+  .coin-fall{position:fixed; top:-40px; font-size:22px; pointer-events:none; z-index:50;
+    animation:fall linear forwards}
+  @keyframes fall{to{transform:translateY(110vh) rotate(360deg); opacity:.7}}
+  footer{margin-top:auto; padding-top:36px; font-size:11px; color:#565e80; text-align:center; line-height:1.7}
+</style>
+</head>
+<body>
+  <h1><span class="coin">💰</span> 월급시계</h1>
+  <p class="sub">연봉을 넣고 시작하면, 내 월급이 실시간으로 차오릅니다</p>
+
+  <div class="panel" id="setup">
+    <label for="salary">연봉 (세전, 원)</label>
+    <div class="salary-row">
+      <input type="text" class="salary" id="salary" inputmode="numeric" placeholder="40,000,000" autocomplete="off">
+      <button class="eye" data-eye="salary" title="연봉 가리기">👁</button>
+      <span class="won">원</span>
+    </div>
+    <div class="chips">
+      <span class="chip" data-v="30000000">3천만</span>
+      <span class="chip" data-v="40000000">4천만</span>
+      <span class="chip" data-v="50000000">5천만</span>
+      <span class="chip" data-v="60000000">6천만</span>
+      <span class="chip" data-v="80000000">8천만</span>
+      <span class="chip" data-v="100000000">1억</span>
+    </div>
+
+    <div class="seg-label">환산 기준 (탭)</div>
+    <div class="seg" id="modeSeg">
+      <button data-mode="work" class="on">🕗 근무시간 기준</button>
+      <button data-mode="all">🌏 시간 무관</button>
+    </div>
+
+    <div class="seg-label">표시 단위</div>
+    <div class="seg" id="unitSeg">
+      <button data-unit="sec" class="on">⚡ 초당</button>
+      <button data-unit="min">⏱ 분당</button>
+      <button data-unit="hour">🕐 시간당</button>
+    </div>
+
+    <button id="startBtn">시작하기 ▶</button>
+
+    <p class="basis" id="basisText"></p>
+  </div>
+
+  <div id="stage">
+    <p class="rate-line" id="rateLine"></p>
+    <div id="counter"></div>
+    <p id="elapsed"></p>
+    <div id="fun"></div>
+
+    <div class="panel" id="liveCtl">
+      <p class="panel-title">— 계산 중에도 바로 변경할 수 있어요 —</p>
+      <label for="salary2">연봉 (세전, 원)</label>
+      <div class="salary-row">
+        <input type="text" class="salary" id="salary2" inputmode="numeric" autocomplete="off">
+        <button class="eye" data-eye="salary2" title="연봉 가리기">👁</button>
+        <span class="won">원</span>
+      </div>
+      <div class="seg-label">환산 기준 (탭)</div>
+      <div class="seg" id="modeSeg2">
+        <button data-mode="work" class="on">🕗 근무시간 기준</button>
+        <button data-mode="all">🌏 시간 무관</button>
+      </div>
+      <div class="seg-label">표시 단위</div>
+      <div class="seg" id="unitSeg2">
+        <button data-unit="sec" class="on">⚡ 초당</button>
+        <button data-unit="min">⏱ 분당</button>
+        <button data-unit="hour">🕐 시간당</button>
+      </div>
+    </div>
+
+    <button id="homeBtn">🏠 처음으로 (Home)</button>
+    <p class="basis2" id="basisText2"></p>
+  </div>
+
+  <footer>
+    재미로 보는 단순 환산입니다. 세금·4대보험·상여·야근수당 등은 반영되지 않아요.<br>
+    근무시간 기준: 월 소정근로시간 209시간(주 40시간) · 시간 무관: 월 30일×24시간
+  </footer>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var salary=$('salary'), salary2=$('salary2'), startBtn=$('startBtn'), homeBtn=$('homeBtn'),
+      setup=$('setup'), stage=$('stage'), counter=$('counter'),
+      rateLine=$('rateLine'), elapsed=$('elapsed'),
+      fun=$('fun'), basisText=$('basisText'), basisText2=$('basisText2');
+
+  var FUN=[{n:'아메리카노',p:4500,e:'☕'},{n:'넷플릭스 한 달',p:13500,e:'📺'},{n:'치킨 한 마리',p:20000,e:'🍗'},{n:'에어팟',p:199000,e:'🎧'}];
+  var UNITS={sec:{label:'⚡ 초당',mult:1},min:{label:'⏱ 분당',mult:60},hour:{label:'🕐 시간당',mult:3600}};
+
+  var S={mode:'work', unit:'sec', salary:0, hidden:false,
+         perSec:0, accrued:0, lastTick:0, t0:0, timer:null, lastShown:-1};
+
+  function fmt(n){return n.toLocaleString('ko-KR')}
+  function parseV(str){return parseInt(String(str).replace(/[^0-9]/g,''),10)||0}
+  function basis(){
+    var s=S.mode==='work'
+      ? '근무시간 기준: 연봉 ÷ 12개월 ÷ 209시간(주 40시간 법정 월 소정근로시간)으로 환산합니다.'
+      : '시간 무관: 연봉 ÷ 12개월 ÷ 30일 ÷ 24시간 — 자는 시간까지 전부 쪼갠 환산입니다.';
+    basisText.textContent=s; basisText2.textContent=s;
+  }
+  function calcPerSec(){
+    var h = S.mode==='work' ? S.salary/12/209 : S.salary/12/30/24;
+    return h/3600;
+  }
+  function rateTxt(){
+    var r=S.perSec*UNITS[S.unit].mult;
+    return UNITS[S.unit].label+' <b>'+(r>=100?fmt(Math.round(r)):r.toFixed(r>=1?1:2))+'원</b>씩 쌓이는 중';
+  }
+  function renderRate(){rateLine.innerHTML=rateTxt();}
+
+  /* --- salary 입력/마스킹 동기화 --- */
+  function paintSalary(){
+    [salary,salary2].forEach(function(inp){
+      if(S.hidden){inp.value='••••••••'; inp.setAttribute('readonly','');}
+      else{inp.value=S.salary?fmt(S.salary):''; inp.removeAttribute('readonly');}
+    });
+    document.querySelectorAll('.eye').forEach(function(b){b.textContent=S.hidden?'🙈':'👁';});
+  }
+  function onSalaryInput(e){
+    if(S.hidden) return;
+    var v=parseV(e.target.value);
+    S.salary=v; paintSalary();
+    if(S.timer){accum(); S.perSec=calcPerSec(); renderRate();}
+  }
+  salary.addEventListener('input',onSalaryInput);
+  salary2.addEventListener('input',onSalaryInput);
+  document.querySelectorAll('.eye').forEach(function(b){
+    b.addEventListener('click',function(){S.hidden=!S.hidden; paintSalary();});
+  });
+  document.querySelectorAll('.chip').forEach(function(c){
+    c.addEventListener('click',function(){S.salary=parseInt(c.dataset.v,10); paintSalary();});
+  });
+
+  /* --- 세그먼트 (setup + stage 동기화) --- */
+  function segWire(ids,key,cb){
+    ids.forEach(function(id){
+      var seg=$(id);
+      seg.querySelectorAll('button').forEach(function(b){
+        b.addEventListener('click',function(){
+          S[key]=b.dataset[key==='mode'?'mode':'unit'];
+          ids.forEach(function(id2){
+            $(id2).querySelectorAll('button').forEach(function(x){
+              x.classList.toggle('on',x===b||x.dataset[key==='mode'?'mode':'unit']===b.dataset[key==='mode'?'mode':'unit']);
+            });
+          });
+          cb();
+        });
+      });
+    });
+  }
+  segWire(['modeSeg','modeSeg2'],'mode',function(){basis();
+    if(S.timer){accum(); S.perSec=calcPerSec(); renderRate();}});
+  segWire(['unitSeg','unitSeg2'],'unit',function(){if(S.timer)renderRate();});
+  basis();
+
+  /* --- 카운터 --- */
+  function accum(){
+    var now=Date.now();
+    S.accrued+=S.perSec*(now-S.lastTick)/1000;
+    S.lastTick=now;
+  }
+  function renderCounter(val){
+    var s=fmt(val), wrap=counter.firstChild;
+    if(!wrap){wrap=document.createElement('span'); counter.appendChild(wrap);}
+    var cur=wrap.textContent;
+    if(s===cur) return;
+    wrap.innerHTML='';
+    for(var i=0;i<s.length;i++){
+      var d=document.createElement('span');
+      d.className='digit'+(s[i]!==cur[i]?' bump':'');
+      d.textContent=s[i];
+      wrap.appendChild(d);
+    }
+  }
+  function renderFun(total){
+    var html='';
+    FUN.forEach(function(f){
+      var c=total/f.p;
+      var txt=c>=1?fmt(Math.floor(c))+'개':(Math.floor(c*100)/100).toLocaleString('ko-KR')+'개';
+      html+='<div class="fun-item"><span>'+f.e+' '+f.n+'</span><span class="cnt">'+txt+'</span></div>';
+    });
+    fun.innerHTML=html;
+  }
+  function dropCoin(){
+    var c=document.createElement('div');
+    c.className='coin-fall'; c.textContent=Math.random()<.5?'🪙':'💸';
+    c.style.left=(8+Math.random()*84)+'vw';
+    c.style.animationDuration=(1.2+Math.random()*1.2)+'s';
+    document.body.appendChild(c);
+    setTimeout(function(){c.remove()},2600);
+  }
+  function tick(){
+    accum();
+    var total=S.accrued, shown=Math.floor(total);
+    renderCounter(shown);
+    if(shown>S.lastShown){S.lastShown=shown; if(shown>0&&shown%100<Math.max(1,S.perSec))dropCoin();}
+    var dt=(Date.now()-S.t0)/1000, mm=Math.floor(dt/60), ss=Math.floor(dt%60);
+    elapsed.textContent='시작 후 '+(mm>0?mm+'분 ':'')+ss+'초 경과';
+    if(Math.floor(dt*2)!==renderFun._last){renderFun._last=Math.floor(dt*2); renderFun(total);}
+  }
+
+  startBtn.addEventListener('click',function(){
+    if(S.salary<1000000){salary.focus(); salary.style.borderColor='#ff6b6b';
+      setTimeout(function(){salary.style.borderColor=''},1200); return;}
+    S.perSec=calcPerSec(); S.accrued=0; S.lastShown=-1; renderFun._last=-1;
+    S.t0=Date.now(); S.lastTick=S.t0;
+    counter.innerHTML=''; renderCounter(0); renderRate();
+    setup.style.display='none'; stage.style.display='block';
+    if(S.timer)clearInterval(S.timer);
+    S.timer=setInterval(tick,50);
+    window.scrollTo(0,0);
+  });
+  homeBtn.addEventListener('click',function(){
+    if(S.timer)clearInterval(S.timer); S.timer=null;
+    stage.style.display='none'; setup.style.display='block';
+    window.scrollTo(0,0);
+  });
+})();
+</script>
+</body>
+</html>
